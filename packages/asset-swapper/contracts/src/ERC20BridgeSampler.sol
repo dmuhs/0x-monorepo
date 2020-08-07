@@ -28,6 +28,7 @@ import "./MStableSampler.sol";
 import "./NativeOrderSampler.sol";
 import "./UniswapSampler.sol";
 import "./UniswapV2Sampler.sol";
+import "./TwoHopSampler.sol";
 
 
 contract ERC20BridgeSampler is
@@ -38,6 +39,7 @@ contract ERC20BridgeSampler is
     MStableSampler,
     MultiBridgeSampler,
     NativeOrderSampler,
+    TwoHopSampler,
     UniswapSampler,
     UniswapV2Sampler
 {
