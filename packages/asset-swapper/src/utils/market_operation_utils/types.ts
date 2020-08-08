@@ -1,3 +1,4 @@
+import { ContractFunctionObj } from '@0x/base-contract';
 import { RFQTIndicativeQuote } from '@0x/quote-server';
 import { MarketOperation, SignedOrder } from '@0x/types';
 import { BigNumber } from '@0x/utils';
@@ -39,6 +40,7 @@ export enum ERC20BridgeSource {
     MultiBridge = 'MultiBridge',
     Balancer = 'Balancer',
     MStable = 'mStable',
+    MultiHop = 'MultiHop',
 }
 
 // tslint:disable: enum-naming
@@ -95,6 +97,16 @@ export interface LiquidityProviderFillData extends FillData {
 
 export interface MultiBridgeFillData extends FillData {
     poolAddress: string;
+}
+
+export interface HopInfo {
+    sourceIndex: BigNumber,
+    returnData: string;
+}
+
+export interface MultiHopFillData extends FillData {
+    firstHopSource: SourceQuoteOperation;
+    secondHopSource: SourceQuoteOperation;
 }
 
 /**
@@ -256,19 +268,43 @@ export interface GetMarketOrdersOpts {
      * order. Defaults to `true`.
      */
     shouldBatchBridgeOrders: boolean;
+    /**
+     * Whether to consider two-hop routes. Only compatible with the ExchangeProxy.
+     */
+    allowTwoHop: boolean;
 }
 
 /**
  * A composable operation the be run in `DexOrderSampler.executeAsync()`.
  */
 export interface BatchedOperation<TResult> {
-    encodeCall(contract: ERC20BridgeSamplerContract): string;
-    handleCallResultsAsync(contract: ERC20BridgeSamplerContract, callResults: string): Promise<TResult>;
+    encodeCall(): string;
+    handleCallResultsAsync(callResults: string): Promise<TResult>;
 }
 
 export interface SourceQuoteOperation<TFillData extends FillData = FillData> extends BatchedOperation<BigNumber[]> {
-    source: ERC20BridgeSource;
+    readonly source: ERC20BridgeSource;
     fillData?: TFillData;
+}
+
+export class SamplerContractOperation<TParams extends any[], TReturn, TFillData extends FillData = FillData>
+    implements SourceQuoteOperation<TFillData> {
+    constructor(
+        private readonly _samplerContract: ERC20BridgeSamplerContract,
+        public readonly source: ERC20BridgeSource,
+        private readonly _samplerFunction: (...params: TParams) => ContractFunctionObj<TReturn>,
+        private readonly _params: any[],
+        public fillData: TFillData = {} as TFillData, // tslint:disable-line:no-object-literal-type-assertion
+        public handleCallResultsAsync: (callResults: string) => Promise<BigNumber[]> = async (callResults: string) => {
+            return _samplerContract.getABIDecodedReturnData<BigNumber[]>(_samplerFunction.name, callResults);
+        },
+    ) {}
+
+    public encodeCall(): string {
+        return this._samplerFunction
+            .bind(this._samplerContract)(...(this._params as TParams))
+            .getABIEncodedTransactionData();
+    }
 }
 
 export interface OptimizedOrdersAndQuoteReport {
@@ -294,4 +330,5 @@ export interface MarketSideLiquidity {
     ethToOutputRate: BigNumber;
     ethToInputRate: BigNumber;
     rfqtIndicativeQuotes: RFQTIndicativeQuote[];
+    twoHopQuotes: DexSample[];
 }

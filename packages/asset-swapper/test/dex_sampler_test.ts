@@ -18,7 +18,7 @@ import {
     computeBalancerSellQuote,
 } from '../src/utils/market_operation_utils/balancer_utils';
 import { DexOrderSampler, getSampleAmounts } from '../src/utils/market_operation_utils/sampler';
-import { ERC20BridgeSource, FillData } from '../src/utils/market_operation_utils/types';
+import { ERC20BridgeSource } from '../src/utils/market_operation_utils/types';
 
 import { MockBalancerPoolsCache } from './utils/mock_balancer_pools_cache';
 import { MockSamplerContract } from './utils/mock_sampler_contract';
@@ -106,7 +106,7 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getOrderFillableMakerAmounts(ORDERS, exchangeAddress),
+                dexOrderSampler.getOrderFillableMakerAmounts(ORDERS, exchangeAddress),
             );
             expect(fillableAmounts).to.deep.eq(expectedFillableAmounts);
         });
@@ -122,7 +122,7 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getOrderFillableTakerAmounts(ORDERS, exchangeAddress),
+                dexOrderSampler.getOrderFillableTakerAmounts(ORDERS, exchangeAddress),
             );
             expect(fillableAmounts).to.deep.eq(expectedFillableAmounts);
         });
@@ -142,11 +142,7 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getKyberSellQuotes(
-                    expectedMakerToken,
-                    expectedTakerToken,
-                    expectedTakerFillAmounts,
-                ),
+                dexOrderSampler.getKyberSellQuotes(expectedMakerToken, expectedTakerToken, expectedTakerFillAmounts),
             );
             expect(fillableAmounts).to.deep.eq(expectedMakerFillAmounts);
         });
@@ -155,23 +151,23 @@ describe('DexSampler tests', () => {
             const expectedMakerToken = randomAddress();
             const expectedTakerToken = randomAddress();
             const registry = randomAddress();
+            const poolAddress = randomAddress();
             const sampler = new MockSamplerContract({
                 sampleSellsFromLiquidityProviderRegistry: (registryAddress, takerToken, makerToken, _fillAmounts) => {
                     expect(registryAddress).to.eq(registry);
                     expect(takerToken).to.eq(expectedTakerToken);
                     expect(makerToken).to.eq(expectedMakerToken);
-                    return [toBaseUnitAmount(1001)];
+                    return [[toBaseUnitAmount(1001)], poolAddress];
                 },
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [result] = await dexOrderSampler.executeAsync(
-                await DexOrderSampler.ops.getSellQuotesAsync(
+                dexOrderSampler.getSellQuotes(
                     [ERC20BridgeSource.LiquidityProvider],
                     expectedMakerToken,
                     expectedTakerToken,
                     [toBaseUnitAmount(1000)],
                     wethAddress,
-                    dexOrderSampler.balancerPoolsCache,
                     registry,
                 ),
             );
@@ -181,7 +177,7 @@ describe('DexSampler tests', () => {
                         source: 'LiquidityProvider',
                         output: toBaseUnitAmount(1001),
                         input: toBaseUnitAmount(1000),
-                        fillData: undefined,
+                        fillData: { poolAddress },
                     },
                 ],
             ]);
@@ -191,23 +187,23 @@ describe('DexSampler tests', () => {
             const expectedMakerToken = randomAddress();
             const expectedTakerToken = randomAddress();
             const registry = randomAddress();
+            const poolAddress = randomAddress();
             const sampler = new MockSamplerContract({
                 sampleBuysFromLiquidityProviderRegistry: (registryAddress, takerToken, makerToken, _fillAmounts) => {
                     expect(registryAddress).to.eq(registry);
                     expect(takerToken).to.eq(expectedTakerToken);
                     expect(makerToken).to.eq(expectedMakerToken);
-                    return [toBaseUnitAmount(999)];
+                    return [[toBaseUnitAmount(999)], poolAddress];
                 },
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [result] = await dexOrderSampler.executeAsync(
-                await DexOrderSampler.ops.getBuyQuotesAsync(
+                dexOrderSampler.getBuyQuotes(
                     [ERC20BridgeSource.LiquidityProvider],
                     expectedMakerToken,
                     expectedTakerToken,
                     [toBaseUnitAmount(1000)],
                     wethAddress,
-                    dexOrderSampler.balancerPoolsCache,
                     registry,
                 ),
             );
@@ -217,7 +213,7 @@ describe('DexSampler tests', () => {
                         source: 'LiquidityProvider',
                         output: toBaseUnitAmount(999),
                         input: toBaseUnitAmount(1000),
-                        fillData: undefined,
+                        fillData: { poolAddress },
                     },
                 ],
             ]);
@@ -244,13 +240,12 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [result] = await dexOrderSampler.executeAsync(
-                await DexOrderSampler.ops.getSellQuotesAsync(
+                dexOrderSampler.getSellQuotes(
                     [ERC20BridgeSource.MultiBridge],
                     expectedMakerToken,
                     expectedTakerToken,
                     [toBaseUnitAmount(1000)],
                     randomAddress(),
-                    dexOrderSampler.balancerPoolsCache,
                     randomAddress(),
                     multiBridge,
                 ),
@@ -261,7 +256,7 @@ describe('DexSampler tests', () => {
                         source: 'MultiBridge',
                         output: toBaseUnitAmount(1001),
                         input: toBaseUnitAmount(1000),
-                        fillData: undefined,
+                        fillData: {},
                     },
                 ],
             ]);
@@ -282,11 +277,7 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getEth2DaiSellQuotes(
-                    expectedMakerToken,
-                    expectedTakerToken,
-                    expectedTakerFillAmounts,
-                ),
+                dexOrderSampler.getEth2DaiSellQuotes(expectedMakerToken, expectedTakerToken, expectedTakerFillAmounts),
             );
             expect(fillableAmounts).to.deep.eq(expectedMakerFillAmounts);
         });
@@ -306,11 +297,7 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getUniswapSellQuotes(
-                    expectedMakerToken,
-                    expectedTakerToken,
-                    expectedTakerFillAmounts,
-                ),
+                dexOrderSampler.getUniswapSellQuotes(expectedMakerToken, expectedTakerToken, expectedTakerFillAmounts),
             );
             expect(fillableAmounts).to.deep.eq(expectedMakerFillAmounts);
         });
@@ -329,7 +316,7 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getUniswapV2SellQuotes(
+                dexOrderSampler.getUniswapV2SellQuotes(
                     [expectedMakerToken, expectedTakerToken],
                     expectedTakerFillAmounts,
                 ),
@@ -352,11 +339,7 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getEth2DaiBuyQuotes(
-                    expectedMakerToken,
-                    expectedTakerToken,
-                    expectedMakerFillAmounts,
-                ),
+                dexOrderSampler.getEth2DaiBuyQuotes(expectedMakerToken, expectedTakerToken, expectedMakerFillAmounts),
             );
             expect(fillableAmounts).to.deep.eq(expectedTakerFillAmounts);
         });
@@ -376,11 +359,7 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getUniswapBuyQuotes(
-                    expectedMakerToken,
-                    expectedTakerToken,
-                    expectedMakerFillAmounts,
-                ),
+                dexOrderSampler.getUniswapBuyQuotes(expectedMakerToken, expectedTakerToken, expectedMakerFillAmounts),
             );
             expect(fillableAmounts).to.deep.eq(expectedTakerFillAmounts);
         });
@@ -438,13 +417,12 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [quotes] = await dexOrderSampler.executeAsync(
-                await DexOrderSampler.ops.getSellQuotesAsync(
+                dexOrderSampler.getSellQuotes(
                     sources,
                     expectedMakerToken,
                     expectedTakerToken,
                     expectedTakerFillAmounts,
                     wethAddress,
-                    dexOrderSampler.balancerPoolsCache,
                 ),
             );
             const expectedQuotes = sources.map(s =>
@@ -455,7 +433,7 @@ describe('DexSampler tests', () => {
                     fillData:
                         s === ERC20BridgeSource.UniswapV2
                             ? { tokenAddressPath: [expectedTakerToken, expectedMakerToken] }
-                            : ((undefined as any) as FillData),
+                            : {},
                 })),
             );
             const uniswapV2ETHQuotes = [
@@ -485,15 +463,10 @@ describe('DexSampler tests', () => {
                 },
             });
             const dexOrderSampler = new DexOrderSampler(new MockSamplerContract({}), undefined, balancerPoolsCache);
-            const [quotes] = await dexOrderSampler.executeAsync(
-                await DexOrderSampler.ops.getSellQuotesAsync(
-                    [ERC20BridgeSource.Balancer],
-                    expectedMakerToken,
-                    expectedTakerToken,
-                    expectedTakerFillAmounts,
-                    wethAddress,
-                    dexOrderSampler.balancerPoolsCache,
-                ),
+            const quotes = await dexOrderSampler.getBalancerSellQuotesAsync(
+                expectedMakerToken,
+                expectedTakerToken,
+                expectedTakerFillAmounts,
             );
             const expectedQuotes = pools.map(p =>
                 expectedTakerFillAmounts.map(a => ({
@@ -544,13 +517,12 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [quotes] = await dexOrderSampler.executeAsync(
-                await DexOrderSampler.ops.getBuyQuotesAsync(
+                dexOrderSampler.getBuyQuotes(
                     sources,
                     expectedMakerToken,
                     expectedTakerToken,
                     expectedMakerFillAmounts,
                     wethAddress,
-                    dexOrderSampler.balancerPoolsCache,
                 ),
             );
             const expectedQuotes = sources.map(s =>
@@ -561,7 +533,7 @@ describe('DexSampler tests', () => {
                     fillData:
                         s === ERC20BridgeSource.UniswapV2
                             ? { tokenAddressPath: [expectedTakerToken, expectedMakerToken] }
-                            : ((undefined as any) as FillData),
+                            : {},
                 })),
             );
             const uniswapV2ETHQuotes = [
@@ -591,15 +563,10 @@ describe('DexSampler tests', () => {
                 },
             });
             const dexOrderSampler = new DexOrderSampler(new MockSamplerContract({}), undefined, balancerPoolsCache);
-            const [quotes] = await dexOrderSampler.executeAsync(
-                await DexOrderSampler.ops.getBuyQuotesAsync(
-                    [ERC20BridgeSource.Balancer],
-                    expectedMakerToken,
-                    expectedTakerToken,
-                    expectedMakerFillAmounts,
-                    wethAddress,
-                    dexOrderSampler.balancerPoolsCache,
-                ),
+            const quotes = await dexOrderSampler.getBalancerBuyQuotesAsync(
+                expectedMakerToken,
+                expectedTakerToken,
+                expectedMakerFillAmounts,
             );
             const expectedQuotes = pools.map(p =>
                 expectedMakerFillAmounts.map(a => ({
@@ -632,8 +599,8 @@ describe('DexSampler tests', () => {
             });
             const dexOrderSampler = new DexOrderSampler(sampler);
             const [fillableMakerAmounts, fillableTakerAmounts] = await dexOrderSampler.executeAsync(
-                DexOrderSampler.ops.getOrderFillableMakerAmounts(ORDERS, exchangeAddress),
-                DexOrderSampler.ops.getOrderFillableTakerAmounts(ORDERS, exchangeAddress),
+                dexOrderSampler.getOrderFillableMakerAmounts(ORDERS, exchangeAddress),
+                dexOrderSampler.getOrderFillableTakerAmounts(ORDERS, exchangeAddress),
             );
             expect(fillableMakerAmounts).to.deep.eq(expectedFillableMakerAmounts);
             expect(fillableTakerAmounts).to.deep.eq(expectedFillableTakerAmounts);

@@ -4,7 +4,7 @@ import { SamplerOverrides } from '../../types';
 import { ERC20BridgeSamplerContract } from '../../wrappers';
 
 import { BalancerPoolsCache } from './balancer_utils';
-import { samplerOperations } from './sampler_operations';
+import { SamplerOperations } from './sampler_operations';
 import { BatchedOperation } from './types';
 
 /**
@@ -29,18 +29,14 @@ type BatchedOperationResult<T> = T extends BatchedOperation<infer TResult> ? TRe
 /**
  * Encapsulates interactions with the `ERC20BridgeSampler` contract.
  */
-export class DexOrderSampler {
-    /**
-     * Composable operations that can be batched in a single transaction,
-     * for use with `DexOrderSampler.executeAsync()`.
-     */
-    public static ops = samplerOperations;
-
+export class DexOrderSampler extends SamplerOperations {
     constructor(
-        private readonly _samplerContract: ERC20BridgeSamplerContract,
+        _samplerContract: ERC20BridgeSamplerContract,
         private readonly _samplerOverrides?: SamplerOverrides,
-        public balancerPoolsCache: BalancerPoolsCache = new BalancerPoolsCache(),
-    ) {}
+        balancerPoolsCache?: BalancerPoolsCache,
+    ) {
+        super(_samplerContract, balancerPoolsCache);
+    }
 
     /* Type overloads for `executeAsync()`. Could skip this if we would upgrade TS. */
 
@@ -140,7 +136,7 @@ export class DexOrderSampler {
      * Takes an arbitrary length array, but is not typesafe.
      */
     public async executeBatchAsync<T extends Array<BatchedOperation<any>>>(ops: T): Promise<any[]> {
-        const callDatas = ops.map(o => o.encodeCall(this._samplerContract));
+        const callDatas = ops.map(o => o.encodeCall());
         const { overrides, block } = this._samplerOverrides
             ? this._samplerOverrides
             : { overrides: undefined, block: undefined };

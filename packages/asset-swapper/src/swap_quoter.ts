@@ -421,7 +421,7 @@ export class SwapQuoter {
         const takerAssetData = assetDataUtils.encodeERC20AssetData(takerTokenAddress);
         let [sellOrders, buyOrders] =
             options.excludedSources && options.excludedSources.includes(ERC20BridgeSource.Native)
-                ? Promise.resolve([[], []])
+                ? [[], []]
                 : await Promise.all([
                       this.orderbook.getOrdersAsync(makerAssetData, takerAssetData),
                       this.orderbook.getOrdersAsync(takerAssetData, makerAssetData),
