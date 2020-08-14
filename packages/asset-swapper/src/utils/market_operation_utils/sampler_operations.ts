@@ -291,6 +291,36 @@ export class SamplerOperations {
         );
     }
 
+    public getBalancerSellQuotes(
+        poolAddress: string,
+        makerToken: string,
+        takerToken: string,
+        takerFillAmounts: BigNumber[],
+    ): SourceQuoteOperation<BalancerFillData> {
+        return new SamplerContractOperation(
+            this._samplerContract,
+            ERC20BridgeSource.Balancer,
+            this._samplerContract.sampleSellsFromBalancer,
+            [poolAddress, takerToken, makerToken, takerFillAmounts],
+            { poolAddress },
+        );
+    }
+
+    public getBalancerBuyQuotes(
+        poolAddress: string,
+        makerToken: string,
+        takerToken: string,
+        makerFillAmounts: BigNumber[],
+    ): SourceQuoteOperation<BalancerFillData> {
+        return new SamplerContractOperation(
+            this._samplerContract,
+            ERC20BridgeSource.Balancer,
+            this._samplerContract.sampleBuysFromBalancer,
+            [poolAddress, takerToken, makerToken, makerFillAmounts],
+            { poolAddress },
+        );
+    }
+
     public async getBalancerSellQuotesAsync(
         makerToken: string,
         takerToken: string,
@@ -697,6 +727,12 @@ export class SamplerOperations {
                             );
                         case ERC20BridgeSource.MStable:
                             return this.getMStableSellQuotes(makerToken, takerToken, takerFillAmounts);
+                        case ERC20BridgeSource.Balancer:
+                            return this.balancerPoolsCache
+                                .getCachedPoolAddressesForPair(takerToken, makerToken)
+                                .map(poolAddress =>
+                                    this.getBalancerSellQuotes(poolAddress, makerToken, takerToken, takerFillAmounts),
+                                );                            
                         default:
                             throw new Error(`Unsupported sell sample source: ${source}`);
                     }
@@ -754,6 +790,12 @@ export class SamplerOperations {
                             );
                         case ERC20BridgeSource.MStable:
                             return this.getMStableBuyQuotes(makerToken, takerToken, makerFillAmounts);
+                        case ERC20BridgeSource.Balancer:
+                            return this.balancerPoolsCache
+                                .getCachedPoolAddressesForPair(takerToken, makerToken)
+                                .map(poolAddress =>
+                                    this.getBalancerBuyQuotes(poolAddress, makerToken, takerToken, makerFillAmounts),
+                                );
                         default:
                             throw new Error(`Unsupported buy sample source: ${source}`);
                     }
