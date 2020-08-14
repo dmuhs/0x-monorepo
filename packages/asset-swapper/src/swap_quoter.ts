@@ -164,6 +164,7 @@ export class SwapQuoter {
             samplerGasLimit,
             liquidityProviderRegistryAddress,
             rfqt,
+            tokenAdjacencyGraph,
         } = _.merge({}, constants.DEFAULT_SWAP_QUOTER_OPTS, options);
         const provider = providerUtils.standardizeOrThrow(supportedProvider);
         assert.isValidOrderbook('orderbook', orderbook);
@@ -209,6 +210,7 @@ export class SwapQuoter {
                 exchangeAddress: this._contractAddresses.exchange,
             },
             liquidityProviderRegistryAddress,
+            tokenAdjacencyGraph,
         );
         this._swapQuoteCalculator = new SwapQuoteCalculator(this._marketOperationUtils);
     }

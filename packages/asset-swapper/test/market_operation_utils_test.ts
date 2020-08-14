@@ -294,6 +294,8 @@ describe('MarketOperationUtils tests', () => {
                 DEFAULT_FILL_DATA[ERC20BridgeSource.Balancer],
             ),
         ],
+        getTwoHopSellQuotes: (..._params: any[]) => [],
+        getTwoHopBuyQuotes: (..._params: any[]) => [],
     };
 
     const MOCK_SAMPLER = ({

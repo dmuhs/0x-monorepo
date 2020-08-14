@@ -22,10 +22,12 @@ import {
     BalancerFillData,
     CollapsedFill,
     CurveFillData,
+    DexSample,
     ERC20BridgeSource,
     Fill,
     LiquidityProviderFillData,
     MultiBridgeFillData,
+    MultiHopFillData,
     NativeCollapsedFill,
     OptimizedMarketOrder,
     OrderDomain,
@@ -149,6 +151,7 @@ export interface CreateOrderFromPathOpts {
 
 // Convert sell fills into orders.
 export function createOrdersFromPath(path: Fill[], opts: CreateOrderFromPathOpts): OptimizedMarketOrder[] {
+    const [makerToken, takerToken] = getMakerTakerTokens(opts);
     const collapsedPath = collapsePath(path);
     const orders: OptimizedMarketOrder[] = [];
     for (let i = 0; i < collapsedPath.length; ) {
@@ -167,7 +170,7 @@ export function createOrdersFromPath(path: Fill[], opts: CreateOrderFromPathOpts
         }
         // Always use DexForwarderBridge unless configured not to
         if (!opts.shouldBatchBridgeOrders) {
-            orders.push(createBridgeOrder(contiguousBridgeFills[0], opts));
+            orders.push(createBridgeOrder(contiguousBridgeFills[0], makerToken, takerToken, opts));
             i += 1;
         } else {
             orders.push(createBatchedBridgeOrder(contiguousBridgeFills, opts));
@@ -175,6 +178,34 @@ export function createOrdersFromPath(path: Fill[], opts: CreateOrderFromPathOpts
         }
     }
     return orders;
+}
+
+export function createOrdersFromTwoHopSample(
+    sample: DexSample<MultiHopFillData>,
+    opts: CreateOrderFromPathOpts,
+): OptimizedMarketOrder[] {
+    const [makerToken, takerToken] = getMakerTakerTokens(opts);
+    const { firstHopSource, secondHopSource, intermediateToken } = sample.fillData!;
+    const firstHopFill: CollapsedFill = {
+        sourcePathId: '',
+        source: firstHopSource.source,
+        input: sample.input,
+        output: ZERO_AMOUNT,
+        subFills: [],
+        fillData: firstHopSource.fillData,
+    };
+    const secondHopFill: CollapsedFill = {
+        sourcePathId: '',
+        source: secondHopSource.source,
+        input: ZERO_AMOUNT,
+        output: sample.output,
+        subFills: [],
+        fillData: secondHopSource.fillData,
+    };
+    return [
+        createBridgeOrder(firstHopFill, intermediateToken, takerToken, opts),
+        createBridgeOrder(secondHopFill, makerToken, intermediateToken, opts),
+    ];
 }
 
 function getBridgeAddressFromFill(fill: CollapsedFill, opts: CreateOrderFromPathOpts): string {
@@ -203,8 +234,12 @@ function getBridgeAddressFromFill(fill: CollapsedFill, opts: CreateOrderFromPath
     throw new Error(AggregationError.NoBridgeForSource);
 }
 
-function createBridgeOrder(fill: CollapsedFill, opts: CreateOrderFromPathOpts): OptimizedMarketOrder {
-    const [makerToken, takerToken] = getMakerTakerTokens(opts);
+function createBridgeOrder(
+    fill: CollapsedFill,
+    makerToken: string,
+    takerToken: string,
+    opts: CreateOrderFromPathOpts,
+): OptimizedMarketOrder {
     const bridgeAddress = getBridgeAddressFromFill(fill, opts);
 
     let makerAssetData;
@@ -263,7 +298,7 @@ function createBridgeOrder(fill: CollapsedFill, opts: CreateOrderFromPathOpts): 
         takerAssetAmount: slippedTakerAssetAmount,
         fillableMakerAssetAmount: slippedMakerAssetAmount,
         fillableTakerAssetAmount: slippedTakerAssetAmount,
-        ...createCommonBridgeOrderFields(opts),
+        ...createCommonBridgeOrderFields(opts.orderDomain),
     };
 }
 
@@ -276,7 +311,7 @@ function createBatchedBridgeOrder(fills: CollapsedFill[], opts: CreateOrderFromP
         calls: [],
     };
     for (const fill of fills) {
-        const bridgeOrder = createBridgeOrder(fill, opts);
+        const bridgeOrder = createBridgeOrder(fill, makerToken, takerToken, opts);
         totalMakerAssetAmount = totalMakerAssetAmount.plus(bridgeOrder.makerAssetAmount);
         totalTakerAssetAmount = totalTakerAssetAmount.plus(bridgeOrder.takerAssetAmount);
         const { bridgeAddress, bridgeData: orderBridgeData } = assetDataUtils.decodeAssetDataOrThrow(
@@ -304,7 +339,7 @@ function createBatchedBridgeOrder(fills: CollapsedFill[], opts: CreateOrderFromP
         takerAssetAmount: totalTakerAssetAmount,
         fillableMakerAssetAmount: totalMakerAssetAmount,
         fillableTakerAssetAmount: totalTakerAssetAmount,
-        ...createCommonBridgeOrderFields(opts),
+        ...createCommonBridgeOrderFields(opts.orderDomain),
     };
 }
 
@@ -392,7 +427,7 @@ type CommonBridgeOrderFields = Pick<
     >
 >;
 
-function createCommonBridgeOrderFields(opts: CreateOrderFromPathOpts): CommonBridgeOrderFields {
+function createCommonBridgeOrderFields(orderDomain: OrderDomain): CommonBridgeOrderFields {
     return {
         takerAddress: NULL_ADDRESS,
         senderAddress: NULL_ADDRESS,
@@ -406,7 +441,7 @@ function createCommonBridgeOrderFields(opts: CreateOrderFromPathOpts): CommonBri
         takerFee: ZERO_AMOUNT,
         fillableTakerFeeAmount: ZERO_AMOUNT,
         signature: WALLET_SIGNATURE,
-        ...opts.orderDomain,
+        ...orderDomain,
     };
 }
 

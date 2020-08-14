@@ -256,7 +256,7 @@ describe('DexSampler tests', () => {
                         source: 'MultiBridge',
                         output: toBaseUnitAmount(1001),
                         input: toBaseUnitAmount(1000),
-                        fillData: {},
+                        fillData: { poolAddress: multiBridge },
                     },
                 ],
             ]);
